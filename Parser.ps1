@@ -1,6 +1,10 @@
 $Script:EpisodesLocation = "C:\LocalDocuments\FHL\Episodes"
 $Script:FfmpegFile = ".\ffmpeg.exe"
 $Script:SqlConnectionString = "Server=DESKTOP-BJGUGNB\SQLExpress01;AttachDbFilename='C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS01\MSSQL\DATA\AwesomoTest.mdf';Database=AwesomoTest;Trusted_Connection=Yes;"
+$Script:SeasonEpisodeRegex = "- S(?<season>\d+)E(?<episodeNumber>\d+) -"
+$Script:FfmpegOutputMatch = "Stream.*Video.*(?<fps>[0-9\.]) fps"
+$Script:FfpmegLineMatch = "Stream.*Video.* (?<fps>[0-9\.]+) fps"
+$Script:SrtOutputFileName = "output.srt"
 
 function Start-SubtitlesParser()
 {
@@ -30,10 +34,10 @@ function Start-SubtitlesParser()
     catch
     {
         Write-Error "Error updating database with $($_.Exception)"
-        $Script:SqlConnection.Close()
+        $sqlConnection.Close()
     }
 
-    $Script:SqlConnection.Close()
+    $sqlConnection.Close()
 }
 
 function Invoke-EpisodeParser()
@@ -44,41 +48,40 @@ function Invoke-EpisodeParser()
     )
 
     # Parse file name to get episode number
-    $regexString = "- S(?<season>\d+)E(?<episodeNumber>\d+) -"
-    $Episode.name -match $regexString | Out-Null
+    $Episode.name -match $Script:SeasonEpisodeRegex | Out-Null
     $season = $matches.season
     $episodeNumber = $matches.episodeNumber
-    Write-Output "Processing episode: $($Episode.Name): Season $season, episode $episodeNumber."
+    Write-Output "Processing episode: $($Episode.Name) [Season $season, Episode $episodeNumber]."
 
     # Run FFMPEG to get srt file
     $fullFilePath = Join-Path $Script:EpisodesLocation $Episode.name
-    
-    Upload-MkvFile -MkvFile $fullFilePath -Season $season -EpisodeNumber $EpisodeNumber -SqlConnection $SqlConnection
+    Upload-MkvFile -MkvFilePath $fullFilePath -Season $season -EpisodeNumber $EpisodeNumber -SqlConnection $SqlConnection
+
+    Write-Output "Done processing episode: $($Episode.Name)"
 }
 
 # Returns an array of row of things to upload into the DB
 function Upload-MkvFile()
 {
     param(
-        [Object] $MkvFile,
+        [String] $MkvFilePath,
         [int] $Season,
         [int] $EpisodeNumber,
         [System.Data.SqlClient.SqlConnection] $SqlConnection
     )
 
-    $ffmpegOutput = & $Script:FfmpegFile -i $MkvFile -map 0:s:0 -y outputFile.srt 2>&1 #TODO: make this into a var 
+    $ffmpegOutput = & $Script:FfmpegFile -i $MkvFilePath -map 0:s:0 -y $Script:SrtOutputFileName 2>&1 #TODO: make this into a var 
 
     # Do the frames calculation
-    $line = $ffmpegOutput -match "Stream.*Video.*(?<fps>[0-9\.]) fps"
-    $line[0].ToString() -match "Stream.*Video.* (?<fps>[0-9\.]+) fps" | Out-Null
+    $line = $ffmpegOutput -match $Script:FfmpegOutputMatch
+    $line[0].ToString() -match $Script:FfpmegLineMatch | Out-Null
     $fps = $matches.fps
 
     # Grab the raw content from the SRT File
-    $text = Get-Content outputFile.srt -Encoding UTF8
+    $text = Get-Content $Script:SrtOutputFileName -Encoding UTF8
 	$lines = ($text -join "`n") -split "`n`n" #entries split by double newline
     
-    $test = 0
-	foreach($line in $lines)
+    foreach($line in $lines)
 	{
 		$entry = $line -split "`n"
 		$timestamps = $entry[1] -split " --> "
@@ -91,7 +94,7 @@ function Upload-MkvFile()
         $startFrame = [int][Math]::Ceiling($startSeconds * $fps)
         $endFrame =  [int][Math]::Floor($endSeconds * $fps)
 
-        Write-Output "season: $season, episode: $EpisodeNumber, starttimestamp: $startTimestamp, endtimestamp: $endTimestamp, startframe: $startFrame, endFrame: $endFrame, text: $text"
+        #Write-Output "season: $season, episode: $EpisodeNumber, starttimestamp: $startTimestamp, endtimestamp: $endTimestamp, startframe: $startFrame, endFrame: $endFrame, text: $text"
         $sqlLine = "INSERT INTO Captions (Season, EpisodeNumber, StartTimestamp, EndTimestamp, StartFrame, EndFrame, Text) VALUES (@Season, @EpisodeNumber, @StartTimestamp, @EndTimestamp, @StartFrame, @EndFrame, @Text)"
         $command = New-Object System.Data.SqlClient.SqlCommand
         $command.CommandText = $sqlLine
@@ -103,11 +106,6 @@ function Upload-MkvFile()
         $command.Parameters.Add("@StartFrame", $startFrame) | Out-Null
         $command.Parameters.Add("@EndFrame", $endFrame) | Out-Null
         $command.Parameters.Add("@Text", $text) | Out-Null
-        $command.ExecuteNonQuery()
-        
-        if($test++ -gt 3)
-        {
-            return
-        }
+        $command.ExecuteNonQuery() | Out-Null
     }
 }
