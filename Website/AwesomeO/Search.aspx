@@ -15,6 +15,11 @@
         <div>
             <asp:Label ID="Label2" runat="server" Text="Label"></asp:Label>
         </div>
+        <div>
+            Entry num to generate:
+            <asp:TextBox ID="TextBox1" runat="server"></asp:TextBox>
+            <asp:Button ID="Button1" runat="server" OnClick="Button1_Click" Text="Generate" />
+        </div>
     </form>
 </body>
 </html>
