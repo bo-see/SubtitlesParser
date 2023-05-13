@@ -12,6 +12,7 @@
             <asp:Table ID="Table1" runat="server">
             </asp:Table>
         </div>
+        <asp:Label ID="Label1" runat="server" Text="Label"></asp:Label>
     </form>
 </body>
 </html>

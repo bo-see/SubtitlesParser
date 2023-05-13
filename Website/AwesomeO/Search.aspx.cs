@@ -71,7 +71,7 @@ namespace AwesomeO
                 return;
             }
 
-            Response.Redirect("Display.aspx?season=" + row.Season + "&episode" + row.EpisodeNumber + "&startFrame=" + row.StartFrame + "&endFrame=" + row.EndFrame);
+            Response.Redirect("Display.aspx?season=" + row.Season + "&episode=" + row.EpisodeNumber + "&startFrame=" + row.StartFrame + "&endFrame=" + row.EndFrame);
         }
     }
 }
