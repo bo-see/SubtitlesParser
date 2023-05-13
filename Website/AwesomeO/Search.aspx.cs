@@ -1,5 +1,6 @@
 ﻿using AwesomeO.Model;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Linq;
@@ -71,7 +72,7 @@ namespace AwesomeO
                 return;
             }
 
-            Response.Redirect("Display.aspx?season=" + row.Season + "&episode=" + row.EpisodeNumber + "&startFrame=" + row.StartFrame + "&endFrame=" + row.EndFrame);
+            Response.Redirect("Display.aspx?season=" + row.Season + "&episode=" + row.EpisodeNumber + "&startFrame=" + row.StartFrame + "&endFrame=" + row.EndFrame + "&text=" + HttpUtility.UrlEncode(row.Text));
         }
     }
 }
